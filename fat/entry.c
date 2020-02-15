@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 #include <wchar.h>
 
@@ -53,6 +54,93 @@ void FAT_loadEntry(FAT_Entry *entry, uint8_t buf[32])
     } else {
         loadDirectoryEntry(&entry->dir, buf);
     }
+}
+
+static int parseEntryDate(uint16_t date, struct tm *t)
+{
+    int dayOfMonth = date & 0x001f;
+    int monthOfYear = (date & 0x01e0) >> 5;
+    if (monthOfYear > 12 || monthOfYear < 1) {
+        return -1;
+    }
+    int year = ((date & 0xfe00) >> 9) + 1980;
+    t->tm_mday = dayOfMonth;
+    t->tm_mon = monthOfYear - 1;
+    t->tm_year = year - 1900;
+    return 0;
+}
+
+static int parseEntryTime(uint16_t time, struct tm *t)
+{
+    int second = (time & 0x001f) * 2;
+    if (second > 58) {
+        return -1;
+    }
+    int minute = (time & 0x07e0) >> 5;
+    if (minute > 59) {
+        return -2;
+    }
+    int hour = (time & 0xf800) >> 11;
+    if (hour > 23) {
+        return -3;
+    }
+    t->tm_sec = second;
+    t->tm_min = minute;
+    t->tm_hour = hour;
+    return 0;
+}
+
+FAT_Status FAT_DirEntry_time(FAT_DirEntry *dir, FAT_TimeType timetype, struct tm *t)
+{
+    switch (timetype) {
+    case FAT_TIME_TYPE_WRITE:
+        if (parseEntryDate(dir->wrtDate, t)
+                || parseEntryTime(dir->wrtTime, t)) {
+
+            return FAT_STATUS_INVAL;
+        }
+
+        break;
+    case FAT_TIME_TYPE_CREATE:
+        if (!dir->crtDate) {
+            return FAT_STATUS_UNSUPPORTED;
+        }
+
+        if (parseEntryDate(dir->crtDate, t)
+                || parseEntryTime(dir->crtTime, t)) {
+
+            return FAT_STATUS_INVAL;
+        }
+
+        if (dir->crtTimeTenth) {
+            t->tm_sec += dir->crtTimeTenth / 200;
+            // XXX: the remaining digits are discarded
+        }
+        break;
+    case FAT_TIME_TYPE_ACCESS:
+        if (!dir->lstAccDate) {
+            return FAT_STATUS_UNSUPPORTED;
+        }
+
+        if (parseEntryDate(dir->lstAccDate, t)) {
+            return FAT_STATUS_INVAL;
+        }
+        parseEntryTime(0, t);
+        break;
+    }
+
+    t->tm_isdst = -1;
+    return FAT_STATUS_OK;
+}
+
+FAT_Status FAT_DirEntry_ts(FAT_DirEntry *dir, FAT_TimeType type, time_t *ts)
+{
+    struct tm tm;
+    FAT_Status status = FAT_DirEntry_time(dir, type, &tm);
+    if (status == FAT_STATUS_OK) {
+        *ts = mktime(&tm);
+    }
+    return status;
 }
 
 FAT_Status FAT_walkEntry(FAT_fs *fs, entry_filter filter)
@@ -123,6 +211,24 @@ void FAT_DirEntry_display(FAT_DirEntry *dir)
     printf("Last Access Date: %u\n", dir->lstAccDate);
     printf("Write Time: %u\n", dir->wrtTime);
     printf("Write Date: %u\n", dir->wrtDate);
+
+    struct tm tm, *ptr_tm = &tm;
+    time_t ts;
+    time_t *ptr_ts = &ts;
+    FAT_Status stat = FAT_DirEntry_ts(dir, FAT_TIME_TYPE_WRITE, ptr_ts);
+    if (stat == FAT_STATUS_OK) {
+        printf("Write : %ld %s", ts, ctime(&ts));
+    }
+
+    stat = FAT_DirEntry_ts(dir, FAT_TIME_TYPE_CREATE, ptr_ts);
+    if (stat == FAT_STATUS_OK) {
+        printf("Create: %ld %s", ts, ctime(&ts));
+    }
+
+    stat = FAT_DirEntry_ts(dir, FAT_TIME_TYPE_ACCESS, ptr_ts);
+    if (stat == FAT_STATUS_OK) {
+        printf("Access: %ld %s", ts, ctime(&ts));
+    }
 
     printf("First Cluster Higher: 0x%X\n", dir->fstClusHi);
     printf("First Cluster Lower: 0x%X\n", dir->fstClusLo);

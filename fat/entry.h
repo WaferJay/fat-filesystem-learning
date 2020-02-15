@@ -4,6 +4,7 @@
 #include "fs.h"
 
 #include <stdint.h>
+#include <time.h>
 
 #define ENTRY_ATTR_READ_ONLY ((uint8_t) 0x01)
 #define ENTRY_ATTR_HIDDEN ((uint8_t) 0x02)
@@ -31,6 +32,12 @@ const static FAT_EntryAttr __allEntryAttrs[COUNT_ENTRY_ATTR] = {
     __ENTRY_ATTR(ENTRY_ATTR_LONG_FILE_NAME)
 };
 #define ENTRY_ATTRS (__allEntryAttrs)
+
+typedef enum {
+    FAT_TIME_TYPE_WRITE,
+    FAT_TIME_TYPE_CREATE,
+    FAT_TIME_TYPE_ACCESS,
+} FAT_TimeType;
 
 typedef struct {
     uint8_t attr;
@@ -65,6 +72,9 @@ typedef union {
 } FAT_Entry;
 
 void FAT_loadEntry(FAT_Entry *entry, uint8_t buf[32]);
+FAT_Status FAT_DirEntry_time(FAT_DirEntry *dir, FAT_TimeType timetype,
+        struct tm *t);
+FAT_Status FAT_DirEntry_ts(FAT_DirEntry *dir, FAT_TimeType type, time_t *t);
 
 typedef int (*entry_filter)(FAT_Entry *);
 FAT_Status FAT_walkEntry(FAT_fs *fs, entry_filter filter);

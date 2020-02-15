@@ -12,7 +12,8 @@ typedef enum {
     FAT_STATUS_INVAL,
     FAT_STATUS_EOF,
     FAT_STATUS_ACCESS_DENIED,
-    FAT_STATUS_NO_MEM
+    FAT_STATUS_NO_MEM,
+    FAT_STATUS_UNSUPPORTED
 } FAT_Status;
 
 typedef enum {

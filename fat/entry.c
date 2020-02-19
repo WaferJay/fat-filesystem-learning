@@ -90,7 +90,8 @@ static int parseEntryTime(uint16_t time, struct tm *t)
     return 0;
 }
 
-FAT_Status FAT_DirEntry_time(FAT_DirEntry *dir, FAT_TimeType timetype, struct tm *t)
+static FAT_Status createStructTime(FAT_DirEntry *dir, FAT_TimeType timetype,
+        struct tm *t)
 {
     switch (timetype) {
     case FAT_TIME_TYPE_WRITE:
@@ -136,11 +137,22 @@ FAT_Status FAT_DirEntry_time(FAT_DirEntry *dir, FAT_TimeType timetype, struct tm
 FAT_Status FAT_DirEntry_ts(FAT_DirEntry *dir, FAT_TimeType type, time_t *ts)
 {
     struct tm tm;
-    FAT_Status status = FAT_DirEntry_time(dir, type, &tm);
+    FAT_Status status = createStructTime(dir, type, &tm);
     if (status == FAT_STATUS_OK) {
         *ts = mktime(&tm);
     }
     return status;
+}
+
+FAT_Status FAT_DirEntry_time(FAT_DirEntry *dir, FAT_TimeType timetype, struct tm *t)
+{
+    time_t ts;
+    time_t *ptr_ts = &ts;
+    FAT_Status stat = FAT_DirEntry_ts(dir, timetype, ptr_ts);
+    if (stat == FAT_STATUS_OK) {
+        localtime_r(ptr_ts, t);
+    }
+    return stat;
 }
 
 FAT_Status FAT_walkEntry(FAT_fs *fs, entry_filter filter)
@@ -211,8 +223,8 @@ void FAT_DirEntry_display(FAT_DirEntry *dir)
     printf("Last Access Date: %u\n", dir->lstAccDate);
     printf("Write Time: %u\n", dir->wrtTime);
     printf("Write Date: %u\n", dir->wrtDate);
+    puts("-----");
 
-    struct tm tm, *ptr_tm = &tm;
     time_t ts;
     time_t *ptr_ts = &ts;
     FAT_Status stat = FAT_DirEntry_ts(dir, FAT_TIME_TYPE_WRITE, ptr_ts);
@@ -268,15 +280,15 @@ void FAT_Entry_display(FAT_Entry *entry)
         puts("====== Directory Entry ======");
         FAT_DirEntry_display(&entry->dir);
     }
-    puts("\nAttributes:");
+    puts("Attributes:");
     if (entry->attr == ENTRY_ATTR_LONG_FILE_NAME) {
-        puts("- ENTRY_LONG_FILE_NAME");
+        puts(" - ENTRY_LONG_FILE_NAME");
     } else {
         for (int i=0; i<COUNT_ENTRY_ATTR; i++) {
             char *name = ENTRY_ATTRS[i].name;
             uint8_t attr = ENTRY_ATTRS[i].value;
             if (CHECK_MASK(entry->attr, attr)) {
-                printf("- %s\n", name);
+                printf(" - %s\n", name);
             }
         }
     }

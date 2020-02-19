@@ -74,7 +74,7 @@ typedef union {
 void FAT_loadEntry(FAT_Entry *entry, uint8_t buf[32]);
 FAT_Status FAT_DirEntry_time(FAT_DirEntry *dir, FAT_TimeType timetype,
         struct tm *t);
-FAT_Status FAT_DirEntry_ts(FAT_DirEntry *dir, FAT_TimeType type, time_t *t);
+FAT_Status FAT_DirEntry_ts(FAT_DirEntry *dir, FAT_TimeType type, time_t *ts);
 
 typedef int (*entry_filter)(FAT_Entry *);
 FAT_Status FAT_walkEntry(FAT_fs *fs, entry_filter filter);
